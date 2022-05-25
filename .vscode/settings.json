@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "*.ejs": "html",
-        "__mutex_base": "c"
+        "__mutex_base": "c",
+        "algorithm": "c",
+        "complex": "c"
     }
 }

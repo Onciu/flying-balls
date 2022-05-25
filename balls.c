@@ -26,6 +26,8 @@ struct ball
 	double angle;
 	double v_angle;
 
+	double moment_of_inertia;
+
 	struct ball_face *face;
 };
 
@@ -38,9 +40,9 @@ unsigned int radius_min = 5;
 unsigned int radius_max = 10;
 
 unsigned int v_max = 100;
-unsigned int v_min = 0;
+unsigned int v_min = 1;
 
-unsigned int v_angle_min = 0;
+unsigned int v_angle_min = 1;
 unsigned int v_angle_max = 100;
 
 struct ball *balls = 0;
@@ -57,17 +59,30 @@ struct
 	int count;
 	double coordx[100];
 	double coordy[100];
-	double v_x[100];
-	double v_y[100];
+	double v_x;
+	double v_y;
+	/* coordinates of the center of mass */
+	double x;
+	double y;
 	// only for the sphere
 	unsigned int radius;
 	double angle;
-	double v_angle;
+	// angular velocity
+	double v_angle_x;
+	double v_angle_y;
+	// mass of the polygon
+	int mass;
+	double moment_inertia_x;
+	double moment_inertia_y;
 
 } glob;
 // Keep trak wether the figure is completed
 // (The user has finished to draw)
 int glob_complete = 0;
+
+// A boolean value to check whether the drawed
+// polygon is simple or not
+int simple_polygon = 1;
 
 // Assign a random velocity to a ball
 // The values for v_x and v_y should be inside a range (v_min, v_max)
@@ -96,7 +111,6 @@ void balls_init_state()
 	{
 		balls[i].x = border + rand() % w;
 		balls[i].y = border + rand() % h;
-		// WHY balls + i
 		random_velocity(balls + i);
 		if (rand() % 2)
 			balls[i].v_x = -balls[i].v_x;
@@ -106,6 +120,8 @@ void balls_init_state()
 		unsigned int v_angle_360 = (v_angle_min + rand() % (v_angle_max + 1 - v_angle_min)) % 360;
 		balls[i].v_angle = 2 * M_PI * v_angle_360 / 360;
 		balls[i].angle = (rand() % 360) * 2 * M_PI / 360;
+		// Calculate the moment of inertia
+		balls[i].moment_of_inertia = M_PI * pow((balls[i].radius * 2), 4) / 64;
 	}
 }
 
@@ -505,6 +521,193 @@ void c_index_destroy()
 /* Trivial collision check
  */
 
+
+// Method for doing the dot product
+double dot_product(double v[], double u[])
+{
+	return (v[0] * u[0]) + (v[1] * u[1]);
+}
+
+// Method for cross product
+double crossProduct(double vect_A[], double vect_B[])
+
+{
+	// fprintf(stderr, "%f \n",  result[0]);
+	return (vect_A[0] * vect_B[1] - vect_A[1] * vect_B[0]);
+}
+
+
+
+
+// Calculate the area of a tringle in a geometric coordinates
+double area_triangle(double x_a, double y_a, double x_b, double y_b)
+{
+	double a = x_a * (y_b - glob.y);
+	double b = x_b * (glob.y - y_a);
+	double c = glob.x * (y_a - y_b);
+	return fabs(a + b + c) / 2;
+}
+
+// Calculate the moment of inertia of the polygon
+void moment_of_inertia()
+{
+	double sum_x = 0;
+	double sum_y = 0;
+	for (size_t i = 0; i < glob.count; i++)
+	{
+		int j = i + 1;
+		if (j == glob.count)
+		{
+			j = 0;
+		}
+		double a = area_triangle(glob.coordx[i], glob.coordy[i], glob.coordx[j], glob.coordy[j]);
+		sum_x += (pow(glob.coordy[i], 2) + (glob.coordy[i] * glob.coordy[j]) + pow(glob.coordy[j], 2)) * a;
+		sum_y += (pow(glob.coordx[i], 2) + (glob.coordx[i] * glob.coordx[j]) + pow(glob.coordx[j], 2)) * a;
+	}
+	glob.moment_inertia_x = sum_x / 12;
+	glob.moment_inertia_y = sum_y / 12;
+	// fprintf(stderr, "%f \n", glob.moment_inertia_x);
+}
+
+// void moment_of_inertia()
+// {
+// 	double area = 0;
+//     double center[] = {0.0, 0.0};
+//     double mmoi = 0;
+
+//     int prev = glob.count-1;
+//     for (int index = 0; index < glob.count; index++)
+//     {
+//         double a[] = {glob.coordx[prev], glob.coordy[prev]};
+//         double b[] ={glob.coordx[index], glob.coordy[index]};
+
+//         double area_step = crossProduct(a, b)/2;
+//         double center_step[] = {(a[0]+b[0])/3, (a[1]+b[1])/3};
+//         double mmoi_step = area_step*(dot_product(a, a)+dot_product(b, b)+dot_product(a, b))/6;
+
+//         center[0] = (center[0]*area + center_step[0] * area_step)/(area + area_step);
+// 		center[1] = (center[1]*area + center_step[1] * area_step)/(area + area_step);
+//         area += area_step;
+//         mmoi += mmoi_step;
+
+//         prev = index;
+//     }
+
+//     double density = glob.mass/area;
+//     mmoi *= density;
+//     mmoi -= glob.mass * dot_product(center, center);
+
+// 	glob.moment_inertia_x  = glob.moment_inertia_y = mmoi;
+	
+// }
+
+
+
+// Calculate the right respond witht the collision between balls and polygon
+void collision_ball_polygon_response(double x, double y, double nb[], struct ball* p)
+{
+	double vel_vector_polygon[] = {glob.v_x, glob.v_y};
+	double dis_vector_polygon[] = {x - glob.x, y - glob.y};
+
+	double vel_vector_ball[] = {p->v_x, p->v_y};
+
+
+
+	double magnitude = sqrt(nb[0] * nb[0] + nb[1] * nb[1]);
+	nb[0] /= magnitude;
+	nb[1] /= magnitude;
+
+	double first_term_x = -2 * (dot_product(vel_vector_polygon, nb) - dot_product(vel_vector_ball, nb) + glob.v_angle_x * (crossProduct(dis_vector_polygon, nb) - p->v_angle * (crossProduct(dis_vector_polygon, nb))));
+	double second_term_x = 1 / glob.mass + (pow(crossProduct(dis_vector_polygon, nb), 2) / glob.moment_inertia_x);
+
+	double first_term_y = -2 * (dot_product(vel_vector_polygon, nb) - dot_product(vel_vector_ball, nb) + glob.v_angle_y * (crossProduct(dis_vector_polygon, nb) - p->v_angle * (crossProduct(dis_vector_polygon, nb))));
+	double second_term_y = 1 / glob.mass + (pow(crossProduct(dis_vector_polygon, nb), 2) / glob.moment_inertia_y);
+
+	double j_x = first_term_x / second_term_x;
+	double j_y = first_term_y / second_term_y;
+
+	double j_vector[] = {j_x, j_y};
+
+	glob.v_x += (1 / glob.mass) * j_x;
+	glob.v_y += (1 / glob.mass) * j_y;
+	// fprintf(stderr, "%f \n", glob.v_x);
+
+	glob.v_angle_x += crossProduct(dis_vector_polygon, j_vector) / glob.moment_inertia_x;
+	glob.v_angle_y += crossProduct(dis_vector_polygon, j_vector) / glob.moment_inertia_y;
+}
+
+// Method for checking and updating if a sphere intersects the polygon
+void check_polygon_intersection()
+{
+	for (int i = 0; i < n_balls; ++i)
+	{
+		double sin_a = sin(glob.angle);
+		double cos_a = cos(glob.angle);
+		struct ball *p = balls + i;
+		for (int j = 0; j < glob.count; j++)
+		{
+			double current_x = glob.x + cos_a * glob.coordx[j] - sin_a * glob.coordy[j];
+			double current_y = glob.y + sin_a * glob.coordx[j] + cos_a * glob.coordy[j];
+
+
+
+			// calc delta distance: source point to line start
+			double dx = p->x - current_x;
+			double dy = p->y - current_y;
+			int next = j + 1;
+
+			if (j == glob.count - 1)
+			{
+				next = 0;
+			}
+			double next_x = glob.x + cos_a * glob.coordx[next] - sin_a * glob.coordy[next];
+			double next_y = glob.y + sin_a * glob.coordx[next] + cos_a * glob.coordy[next];
+			// calc delta distance: line start to end
+			double dxx = next_x - current_x;
+			double dyy = next_y - current_y;
+
+			// Calc position on line normalized between 0.00 & 1.00
+			// == dot product divided by delta line distances squared
+			double t = (dx * dxx + dy * dyy) / (dxx * dxx + dyy * dyy);
+
+			// calc nearest pt on line
+			double x = current_x + dxx * t;
+			double y = current_y + dyy * t;
+
+			// clamp results to being on the segment
+			if (t < 0)
+			{
+				x = current_x;
+				y = current_y;
+			}
+			if (t > 1)
+			{
+				x = next_x;
+				y = next_y;
+			}
+			double a = p->x - x;
+			double b = p->y - y;
+			int collide = 0;
+			if ((a * a + b * b) < p->radius * p->radius)
+			{
+				collide = 1;
+			}
+
+			if (collide)
+			{
+				double nb[2];
+				nb[0] = glob.x - x;
+				nb[1] = y;
+				// collision_ball_polygon_response(x, y, nb, p);
+				// double first_term = -2 * ( );
+				// double second_term = (1/glob.mass) + 1 + ;
+				// double j = first_term / second_term;
+				// https://fotino.me/2d-rigid-body-collision-response/
+			}
+		}
+	}
+};
+
 void check_collisions_simple()
 {
 	for (int i = 0; i < n_balls; ++i)
@@ -516,6 +719,8 @@ void check_collisions_with_index()
 {
 	c_index_build();
 	c_index_check_collisions();
+	// Check the collision with the polygon
+	check_polygon_intersection();
 }
 
 // Perchè esiste questo metodo?
@@ -830,18 +1035,31 @@ gboolean draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
 	{
 		guint64 start = g_get_monotonic_time();
 		draw_balls_onto_window();
-		//
-		do_drawing(cr, widget);
-		//
 		stats_draw_usec += g_get_monotonic_time() - start;
 		++stats_draw_samples;
 	}
 	else
 	{
 		draw_balls_onto_window();
-		//
+	}
+	// Draw the polygon only if is not completed or is a simple one
+	// if it is a complex polygon when completed then pop up a message
+	if (simple_polygon || !glob_complete)
+	{
 		do_drawing(cr, widget);
-		//
+	}
+	else if (glob_complete && !simple_polygon)
+	{
+		cairo_set_source_rgb(cr, 0.5, 0.0, 0.0);
+
+		cairo_select_font_face(cr, "Purisa",
+							   CAIRO_FONT_SLANT_NORMAL,
+							   CAIRO_FONT_WEIGHT_BOLD);
+
+		cairo_set_font_size(cr, 15);
+
+		cairo_move_to(cr, 20, 30);
+		cairo_show_text(cr, "You cannot draw a self intersected polygon!");
 	}
 	return FALSE;
 }
@@ -854,112 +1072,226 @@ static void create_and_add_sphere()
 	// This radius is twice the one from the structure
 	// since the cairo drawing patter for the face is different
 	unsigned int v_angle_360 = (v_angle_min + rand() % (v_angle_max + 1 - v_angle_min)) % 360;
-	glob.v_angle = 2 * M_PI * v_angle_360 / 360;
+	glob.v_angle_x = 2 * M_PI * v_angle_360 / 360;
 	glob.angle = (rand() % 360) * 2 * M_PI / 360;
 
-	glob.coordx[0] += delta * glob.v_x[0] + delta * delta * g_x / 2.0;
-	glob.v_x[0] += delta * g_x;
+	glob.coordx[0] += delta * glob.v_x + delta * delta * g_x / 2.0;
+	glob.v_x += delta * g_x;
 
-	glob.coordy[0] += delta * glob.v_y[0] + delta * delta * g_y / 2.0;
-	glob.v_y[0] += delta * g_y;
+	glob.coordy[0] += delta * glob.v_y + delta * delta * g_y / 2.0;
+	glob.v_y += delta * g_y;
 
 	// polygon_sphere_case_boundaries();
 
 	balls[n_balls - 1].x = glob.coordx[0];
 	balls[n_balls - 1].y = glob.coordy[0];
-	balls[n_balls - 1].v_x = glob.v_x[0];
-	balls[n_balls - 1].v_y = glob.v_y[0];
+	balls[n_balls - 1].v_x = glob.v_x;
+	balls[n_balls - 1].v_y = glob.v_y;
 	balls[n_balls - 1].angle = glob.angle;
-	balls[n_balls - 1].v_angle = glob.v_angle;
+	balls[n_balls - 1].v_angle = glob.v_angle_x;
 	balls[n_balls - 1].radius = glob.radius;
 }
 
+// Find the mass of the polygon
+static void polygon_mass()
+{
+	double sum_x = 0;
+	double sum_y = 0;
+	for (size_t i = 0; i < glob.count; i++)
+	{
+		int j = i + 1;
+		if (j == glob.count)
+		{
+			j = 0;
+		}
+		sum_x += glob.coordx[i] * glob.coordy[j];
+		sum_y += glob.coordy[i] * glob.coordx[j];
+	}
+	// Since density = mass/area
+	// mass = desnity * area and dfensity = 1
+	glob.mass = abs((int)((sum_x - sum_y) / 2));
+	// fprintf(stderr, "%d \n", glob.mass);
+}
+
+// Calculate the right respond witht the collision between wall and polygon
+void collision_wall_response(double x, double y, double nb[])
+{
+	double vel_vector[] = {glob.v_x, glob.v_y};
+	double dis_vector[] = {x - glob.x, y - glob.y};
+
+	double magnitude = sqrt(nb[0] * nb[0] + nb[1] * nb[1]);
+	nb[0] /= magnitude;
+	nb[1] /= magnitude;
+
+	magnitude = sqrt(dis_vector[0] * dis_vector[0] + dis_vector[1] * dis_vector[1]);
+	dis_vector[0] /= magnitude;
+	dis_vector[1] /= magnitude;
+
+	double first_term_x = -2 * (dot_product(vel_vector, nb) + glob.v_angle_x * (crossProduct(dis_vector, nb)));
+	double second_term_x = 1 / glob.mass + (pow(crossProduct(dis_vector, nb), 2) / glob.moment_inertia_x);
+
+	double first_term_y = -2 * (dot_product(vel_vector, nb) + glob.v_angle_y * (crossProduct(dis_vector, nb)));
+	double second_term_y = 1 / glob.mass + (pow(crossProduct(dis_vector, nb), 2) / glob.moment_inertia_y);
+
+	double j_x = first_term_x / second_term_x;
+	double j_y = first_term_y / second_term_y;
+
+	double j_vector[] = {j_x, j_y};
+
+	glob.v_x += (1 / glob.mass) * j_x;
+	glob.v_y += (1 / glob.mass) * j_y;
+	// fprintf(stderr, "%f \n", vel_vector);
+
+	glob.v_angle_x += crossProduct(dis_vector, j_vector) / glob.moment_inertia_x;
+	glob.v_angle_y += crossProduct(dis_vector, j_vector) / glob.moment_inertia_y;
+	if(glob.v_angle_x > 2 * M_PI){
+		glob.v_angle_x = 2*M_PI;
+	}
+	if(glob.v_angle_x < -2 * M_PI){
+		glob.v_angle_x = -2 * M_PI;
+	}
+	if(glob.v_angle_y > 2 * M_PI){
+		glob.v_angle_y = 2*M_PI;
+	}
+	if(glob.v_angle_y > -2 * M_PI){
+		glob.v_angle_y = -2*M_PI;
+	}
+
+	// fprintf(stderr, "%f \n", glob.v_angle_x);
+}
+
+// Update the polygon state with the gravity and the rotation
 static void update_polygon()
 {
 	// Magari questa condizione è reduntant
-	// Avoid intersections??
 	if (glob_complete)
 	{
-		int stop = 0;
-		// Facendo il while appena tocca il margine ferma tutti i punti
-		int i = 0;
 
-		while (i < glob.count)
+		/* collision check */
+		double sin_a = sin(glob.angle);
+		double cos_a = cos(glob.angle);
+
+		glob.x += delta * glob.v_x + delta * delta * g_x / 2.0;
+		glob.y += delta * glob.v_y + delta * delta * g_y / 2.0;
+
+		for (int i = 0; i < glob.count; ++i)
 		{
-			if (stop)
+			double x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
+			double y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
+
+			double nb[2];
+			double bias = 1;
+			if ((x < bias && glob.v_x < 0) || (x > width-bias && glob.v_x > 0))
 			{
-				glob.v_y[i] = 0;
-				glob.v_x[i] = 0;
-				i++;
-			}
-			else
-			{
-				glob.coordx[i] += delta * glob.v_x[i] + delta * delta * g_x / 2.0;
-				glob.v_x[i] += delta * g_x;
-				glob.coordy[i] += delta * glob.v_y[i] + delta * delta * g_y / 2.0;
-				glob.v_y[i] += delta * g_y;
-				// Check the bottom
-				if (glob.coordy[i] > height)
+				
+				if (x < bias)
 				{
-					stop = 1;
-					if (glob.v_y[i] > 0)
-					{
-						glob.coordy[i] -= glob.coordy[i] - height;
-						glob.v_y[i] = 0;
-						glob.v_x[i] = 0;
-					}
-					// return to the beginning
-					i = 0;
-				}
-				// Check the right wall
-				else if (glob.coordx[i] > width)
-				{
-					stop = 1;
-					if (glob.v_x[i] > 0)
-					{
-						glob.coordx[i] -= glob.coordx[i] - width;
-						glob.v_y[i] = 0;
-						glob.v_x[i] = 0;
-					}
-					// return to the beginning
-					i = 0;
-				}
-				// Check the left wall
-				else if (glob.coordx[i] < 0)
-				{
-					stop = 1;
-					if (glob.v_x[i] < 0)
-					{
-						// glob.coordx[i] += glob.coordx[i];
-						glob.v_y[i] = 0;
-						// glob.v_x[i] = -glob.v_x[i];
-						glob.v_x[i] = 0;
-					}
-					// return to the beginning
-					i = 0;
-				}
-				// Check the upper wall
-				else if (glob.coordy[i] < 0)
-				{
-					stop = 1;
-					if (glob.v_y[i] < 0)
-					{
-						glob.coordy[i] -= glob.coordy[i];
-						glob.v_y[i] = 0;
-						glob.v_x[i] = 0;
-					}
-					// return to the beginning
-					i = 0;
+					nb[0] = bias;
+					nb[1] = -height;
 				}
 				else
 				{
-					i++;
+					nb[0] = bias;
+					nb[1] = height;
 				}
+
+				collision_wall_response(x, y, nb);
+
+				glob.v_x = -glob.v_x;
+				break;
+			}
+			if ((y < bias && glob.v_y < 0) || (y > height-bias && glob.v_y > 0))
+			{
+				if (y < bias)
+				{
+					nb[0] = -width;
+					nb[1] = bias;
+				}
+				else
+				{
+					nb[0] = width;
+					nb[1] = bias;
+				}
+
+				collision_wall_response(x, y, nb);
+
+				glob.v_y = -glob.v_y;
+				break;
+			}
+		}
+
+		
+		glob.v_x += delta * g_x;
+		glob.v_y += delta * g_y;
+		glob.angle += delta * glob.v_angle_x;
+		// Make boundaries on the angular velocity
+		
+		if (glob.angle > 2 * M_PI)
+			glob.angle -= 2 * M_PI;
+		else if (glob.angle < 0)
+			glob.angle += 2 * M_PI;
+
+		
+	}
+}
+// --------------------------
+
+// Return in which direction the segment turn
+double turn(int a, int b, int c)
+{
+	/* return 1		if a-->b-->c makes a LEFT turn
+	 * return -1	if a-->b-->c makes a RIGHT turn
+	 * return 0		if a-->b-->c goes straight or makes a 180 degree turn
+	 */
+
+	/* vector product ab x bc (vector a-->b cross vector b-->c) */
+	double p = (glob.coordx[b] - glob.coordx[a]) * (glob.coordy[c] - glob.coordy[b]) - (glob.coordy[b] - glob.coordy[a]) * (glob.coordx[c] - glob.coordx[b]);
+	if (p > 0)
+		return 1;
+	else if (p < 0)
+		return -1;
+	else
+		return 0;
+}
+
+// Chech if the directions are opposite or the same
+// If they are the same then the two segments intersect
+int intersection(int a, int b, int c, int d)
+{
+	/* return TRUE iff segment a--b intersects segment c--d
+	 */
+	return turn(a, b, c) * turn(a, b, d) == -1 && turn(a, c, d) * turn(b, c, d) == -1;
+}
+
+// Draw a red line when the intersection occurs
+// Note that in this case I use the coordinates
+// that are not relative to the center of mass
+// since while drawing there is no force applied,
+// Thus for an intersection I can use the normal coordinates
+void draw_intersections(cairo_t *cr)
+{
+	for (int i = 0; i < glob.count; ++i)
+	{
+		int a = i;
+		int b = i + 1;
+		for (int c = b + 1; c < glob.count; ++c)
+		{
+			int d = (c + 1 != glob.count) ? c + 1 : 0;
+			if (d != a && intersection(a, b, c, d))
+			{
+				// Intersection found
+				simple_polygon = 0;
+				cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.5);
+				cairo_move_to(cr, glob.coordx[a], glob.coordy[a]);
+				cairo_line_to(cr, glob.coordx[b], glob.coordy[b]);
+				cairo_stroke(cr);
+				cairo_move_to(cr, glob.coordx[c], glob.coordy[c]);
+				cairo_line_to(cr, glob.coordx[d], glob.coordy[d]);
+				cairo_stroke(cr);
 			}
 		}
 	}
 }
-// --------------------------
 
 // Update the state for each object on the canvas
 gboolean timeout(gpointer user_data)
@@ -1011,11 +1343,12 @@ static void do_drawing(cairo_t *cr, GtkWidget *widget)
 
 	if (glob.count == 1)
 	{
-		// If the the user wants to draw a sphere 
-		// we hide the ghost drawing and let the 
+		// If the the user wants to draw a sphere
+		// we hide the ghost drawing and let the
 		// old implementation run with the new added
 		// sphere
-		if(glob_complete){
+		if (glob_complete)
+		{
 			transparency = 0.0;
 		}
 		cairo_translate(cr, glob.coordx[0], glob.coordy[0]);
@@ -1032,15 +1365,81 @@ static void do_drawing(cairo_t *cr, GtkWidget *widget)
 		cairo_fill(cr);
 		return;
 	}
-	cairo_move_to(cr, glob.coordx[0], glob.coordy[0]);
-	for (int i = 1; i < glob.count; ++i)
-		cairo_line_to(cr, glob.coordx[i], glob.coordy[i]);
+
+	double sin_a = sin(glob.angle);
+	double cos_a = cos(glob.angle);
+	int first_point = 1;
+	for (int i = 0; i < glob.count; ++i)
+	{
+		double x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
+		double y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
+		if (first_point)
+		{
+			cairo_move_to(cr, x, y);
+			first_point = 0;
+		}
+		else
+			cairo_line_to(cr, x, y);
+	}
 	cairo_close_path(cr);
 	cairo_set_source_rgba(cr, 0.1, 0.094, 0.4, transparency);
 	cairo_fill_preserve(cr);
 	cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, transparency);
 	cairo_set_line_width(cr, 2);
 	cairo_stroke(cr);
+
+	draw_intersections(cr);
+
+	// draw the gravity point
+	for (int i = 0; i < glob.count; ++i)
+	{
+		double x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
+		double y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
+		cairo_set_source_rgba(cr, 0.0, 1.0, 0.0, 0.5);
+		cairo_move_to(cr, x, y);
+		cairo_line_to(cr, glob.x, glob.y);
+		cairo_stroke(cr);
+	}
+
+	// fprintf(stderr, "%f\n", glob.center_of_gravity[0]);
+	cairo_translate(cr, glob.x, glob.y);
+	cairo_arc(cr, 0, 0, 10, 0, 2 * M_PI);
+
+	cairo_pattern_t *pat;
+	int radius = 5;
+	pat = cairo_pattern_create_radial(-0.2 * radius, -0.2 * radius, 0.2 * radius,
+									  -0.2 * radius, -0.2 * radius, 1.3 * radius);
+	cairo_pattern_add_color_stop_rgba(pat, 0, 1.0, 1.0, 1.0, transparency);
+	cairo_pattern_add_color_stop_rgba(pat, 1, 1.0 / 3, 1.0 / 3, 1.0 / 3, transparency);
+	cairo_set_source(cr, pat);
+
+	cairo_fill(cr);
+}
+
+// Calculate the center of mass of the polygon
+static void centroidForPoly()
+{
+	if (glob.count == 2)
+	{
+		glob.x = glob.coordx[0] + (glob.coordx[1] - glob.coordx[0]) / 2;
+		glob.y = glob.coordy[0] + (glob.coordy[1] - glob.coordy[0]) / 2;
+	}
+	else
+	{
+		double sum = 0.0;
+		double vsum[2];
+
+		for (int i = 0; i < glob.count; i++)
+		{
+			double cross = glob.coordx[i] * glob.coordy[(i + 1) % glob.count] - glob.coordy[i] * glob.coordx[(i + 1) % glob.count];
+			sum += cross;
+			vsum[0] = (glob.coordx[i] + glob.coordx[(i + 1) % glob.count]) * cross + vsum[0];
+			vsum[1] = (glob.coordy[i] + glob.coordy[(i + 1) % glob.count]) * cross + vsum[1];
+		}
+		double z = 1.0 / (3.0 * sum);
+		glob.x = vsum[0] * z;
+		glob.y = vsum[1] * z;
+	}
 }
 
 // Connect the click event
@@ -1058,6 +1457,7 @@ static gboolean clicked(GtkWidget *widget, GdkEventButton *event,
 		if (glob_complete)
 		{
 			glob_complete = 0;
+			simple_polygon = 1;
 			if (glob.count == 1)
 			{
 				// Reallocate the memory for the erased sphere
@@ -1068,7 +1468,10 @@ static gboolean clicked(GtkWidget *widget, GdkEventButton *event,
 				c_index = realloc(c_index, sizeof(struct bt_node) * (n_balls));
 				assert(c_index);
 			}
+			glob.x = 0.0;
+			glob.y = 0.0;
 			glob.count = 0;
+			glob.angle = 0.0;
 		}
 		if (glob.count < 100)
 		{
@@ -1082,12 +1485,11 @@ static gboolean clicked(GtkWidget *widget, GdkEventButton *event,
 
 		glob_complete = 1;
 		// Add random velocity
-		float velocity = v_min + rand() % (v_max + 1 - v_min);
-		for (int i = 0; i < glob.count; ++i)
-		{
-			glob.v_x[i] = velocity;
-			glob.v_y[i] = velocity;
-		}
+		glob.v_x = v_min + rand() % (v_max + 1 - v_min);
+		glob.v_y = v_min + rand() % (v_max + 1 - v_min);
+		glob.v_angle_x = (v_min + rand() % (v_max + 1 - v_min)) / 10;
+		glob.v_angle_y = glob.v_angle_x;
+
 		if (glob.count == 1)
 		{
 			// Reallocate the memory for the added sphere
@@ -1127,7 +1529,20 @@ static gboolean clicked(GtkWidget *widget, GdkEventButton *event,
 				balls[n_balls - 1].face = faces[n_balls - 1] = new_ball_face(balls[n_balls - 1].radius, 0, face_rotation);
 			}
 		}
-		// Calculate center of mass
+		else
+		{
+			// Calculate center of gravity
+			centroidForPoly();
+			// calculate the mass of the polygon
+			polygon_mass();
+			// calculate the moment of inertia of the polygon
+			moment_of_inertia();
+			for (int i = 0; i < glob.count; ++i)
+			{
+				glob.coordx[i] -= glob.x;
+				glob.coordy[i] -= glob.y;
+			}
+		}
 		gtk_widget_queue_draw(widget);
 	}
 
