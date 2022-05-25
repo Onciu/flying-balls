@@ -985,6 +985,7 @@ gint keyboard_input(GtkWidget *widget, GdkEventKey *event)
 		{
 			glob_complete = 0;
 			glob.count = 0;
+			simple_polygon = 1;
 		}
 		break;
 	case GDK_KEY_Q:
@@ -1270,6 +1271,7 @@ int intersection(int a, int b, int c, int d)
 // Thus for an intersection I can use the normal coordinates
 void draw_intersections(cairo_t *cr)
 {
+	int found = 0;
 	for (int i = 0; i < glob.count; ++i)
 	{
 		int a = i;
@@ -1281,6 +1283,7 @@ void draw_intersections(cairo_t *cr)
 			{
 				// Intersection found
 				simple_polygon = 0;
+				found = 1;
 				cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.5);
 				cairo_move_to(cr, glob.coordx[a], glob.coordy[a]);
 				cairo_line_to(cr, glob.coordx[b], glob.coordy[b]);
@@ -1290,6 +1293,11 @@ void draw_intersections(cairo_t *cr)
 				cairo_stroke(cr);
 			}
 		}
+	}
+	// If the user fixed the intersection while drawing set the correct boolean to indicate that is not
+	// longer a self intercepted polygon
+	if(!found && !simple_polygon){
+		simple_polygon = 1;
 	}
 }
 
