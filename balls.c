@@ -521,7 +521,6 @@ void c_index_destroy()
 /* Trivial collision check
  */
 
-
 // Method for doing the dot product
 double dot_product(double v[], double u[])
 {
@@ -535,9 +534,6 @@ double crossProduct(double vect_A[], double vect_B[])
 	// fprintf(stderr, "%f \n",  result[0]);
 	return (vect_A[0] * vect_B[1] - vect_A[1] * vect_B[0]);
 }
-
-
-
 
 // Calculate the area of a tringle in a geometric coordinates
 double area_triangle(double x_a, double y_a, double x_b, double y_b)
@@ -598,20 +594,16 @@ void moment_of_inertia()
 //     mmoi -= glob.mass * dot_product(center, center);
 
 // 	glob.moment_inertia_x  = glob.moment_inertia_y = mmoi;
-	
+
 // }
 
-
-
 // Calculate the right respond witht the collision between balls and polygon
-void collision_ball_polygon_response(double x, double y, double nb[], struct ball* p)
+void collision_ball_polygon_response(double x, double y, double nb[], struct ball *p)
 {
 	double vel_vector_polygon[] = {glob.v_x, glob.v_y};
 	double dis_vector_polygon[] = {x - glob.x, y - glob.y};
 
 	double vel_vector_ball[] = {p->v_x, p->v_y};
-
-
 
 	double magnitude = sqrt(nb[0] * nb[0] + nb[1] * nb[1]);
 	nb[0] /= magnitude;
@@ -648,8 +640,6 @@ void check_polygon_intersection()
 		{
 			double current_x = glob.x + cos_a * glob.coordx[j] - sin_a * glob.coordy[j];
 			double current_y = glob.y + sin_a * glob.coordx[j] + cos_a * glob.coordy[j];
-
-
 
 			// calc delta distance: source point to line start
 			double dx = p->x - current_x;
@@ -1135,7 +1125,7 @@ void collision_wall_response(double x, double y, double nb[])
 	double second_term_y = 1 / glob.mass + (pow(crossProduct(dis_vector, nb), 2) / glob.moment_inertia_y);
 
 	double j_x = first_term_x / second_term_x;
-	double j_y = first_term_y / second_term_y;
+	double j_y = j_x;
 
 	double j_vector[] = {j_x, j_y};
 
@@ -1145,18 +1135,18 @@ void collision_wall_response(double x, double y, double nb[])
 
 	glob.v_angle_x += crossProduct(dis_vector, j_vector) / glob.moment_inertia_x;
 	glob.v_angle_y += crossProduct(dis_vector, j_vector) / glob.moment_inertia_y;
-	if(glob.v_angle_x > 2 * M_PI){
-		glob.v_angle_x = 2*M_PI;
-	}
-	if(glob.v_angle_x < -2 * M_PI){
-		glob.v_angle_x = -2 * M_PI;
-	}
-	if(glob.v_angle_y > 2 * M_PI){
-		glob.v_angle_y = 2*M_PI;
-	}
-	if(glob.v_angle_y > -2 * M_PI){
-		glob.v_angle_y = -2*M_PI;
-	}
+	// if(glob.v_angle_x > 2 * M_PI){
+	// 	glob.v_angle_x = 2*M_PI;
+	// }
+	// if(glob.v_angle_x < -2 * M_PI){
+	// 	glob.v_angle_x = -2 * M_PI;
+	// }
+	// if(glob.v_angle_y > 2 * M_PI){
+	// 	glob.v_angle_y = 2*M_PI;
+	// }
+	// if(glob.v_angle_y > -2 * M_PI){
+	// 	glob.v_angle_y = -2*M_PI;
+	// }
 
 	// fprintf(stderr, "%f \n", glob.v_angle_x);
 }
@@ -1177,14 +1167,14 @@ static void update_polygon()
 
 		for (int i = 0; i < glob.count; ++i)
 		{
-			double x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
-			double y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
+			double x = glob.x + (cos_a * glob.coordx[i] - sin_a * glob.coordy[i]);
+			double y = glob.y + (sin_a * glob.coordx[i] + cos_a * glob.coordy[i]);
 
 			double nb[2];
-			double bias = 1;
-			if ((x < bias && glob.v_x < 0) || (x > width-bias && glob.v_x > 0))
+			double bias = 2;
+			if ((x < bias && glob.v_x < 0) || (x > width - bias && glob.v_x > 0))
 			{
-				
+
 				if (x < bias)
 				{
 					nb[0] = bias;
@@ -1201,7 +1191,7 @@ static void update_polygon()
 				glob.v_x = -glob.v_x;
 				break;
 			}
-			if ((y < bias && glob.v_y < 0) || (y > height-bias && glob.v_y > 0))
+			if ((y < bias && glob.v_y < 0) || (y > height - bias && glob.v_y > 0))
 			{
 				if (y < bias)
 				{
@@ -1221,18 +1211,15 @@ static void update_polygon()
 			}
 		}
 
-		
 		glob.v_x += delta * g_x;
 		glob.v_y += delta * g_y;
 		glob.angle += delta * glob.v_angle_x;
 		// Make boundaries on the angular velocity
-		
+
 		if (glob.angle > 2 * M_PI)
 			glob.angle -= 2 * M_PI;
 		else if (glob.angle < 0)
 			glob.angle += 2 * M_PI;
-
-		
 	}
 }
 // --------------------------
@@ -1296,7 +1283,8 @@ void draw_intersections(cairo_t *cr)
 	}
 	// If the user fixed the intersection while drawing set the correct boolean to indicate that is not
 	// longer a self intercepted polygon
-	if(!found && !simple_polygon){
+	if (!found && !simple_polygon)
+	{
 		simple_polygon = 1;
 	}
 }
@@ -1399,14 +1387,17 @@ static void do_drawing(cairo_t *cr, GtkWidget *widget)
 	draw_intersections(cr);
 
 	// draw the gravity point
-	for (int i = 0; i < glob.count; ++i)
+	if (glob_complete)
 	{
-		double x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
-		double y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
-		cairo_set_source_rgba(cr, 0.0, 1.0, 0.0, 0.5);
-		cairo_move_to(cr, x, y);
-		cairo_line_to(cr, glob.x, glob.y);
-		cairo_stroke(cr);
+		for (int i = 0; i < glob.count; ++i)
+		{
+			double x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
+			double y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
+			cairo_set_source_rgba(cr, 0.0, 1.0, 0.0, 0.5);
+			cairo_move_to(cr, x, y);
+			cairo_line_to(cr, glob.x, glob.y);
+			cairo_stroke(cr);
+		}
 	}
 
 	// fprintf(stderr, "%f\n", glob.center_of_gravity[0]);
