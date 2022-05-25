@@ -1402,7 +1402,7 @@ static void do_drawing(cairo_t *cr, GtkWidget *widget)
 
 	// fprintf(stderr, "%f\n", glob.center_of_gravity[0]);
 	cairo_translate(cr, glob.x, glob.y);
-	cairo_arc(cr, 0, 0, 10, 0, 2 * M_PI);
+	cairo_arc(cr, 0, 0, 2, 0, 2 * M_PI);
 
 	cairo_pattern_t *pat;
 	int radius = 5;
