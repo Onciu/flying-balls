@@ -68,12 +68,10 @@ struct
 	unsigned int radius;
 	double angle;
 	// angular velocity
-	double v_angle_x;
-	double v_angle_y;
+	double v_angle;
 	// mass of the polygon
 	int mass;
-	double moment_inertia_x;
-	double moment_inertia_y;
+	double moment_inertia;
 
 } glob;
 // Keep trak wether the figure is completed
@@ -545,25 +543,25 @@ double area_triangle(double x_a, double y_a, double x_b, double y_b)
 }
 
 // Calculate the moment of inertia of the polygon
-void moment_of_inertia()
-{
-	double sum_x = 0;
-	double sum_y = 0;
-	for (size_t i = 0; i < glob.count; i++)
-	{
-		int j = i + 1;
-		if (j == glob.count)
-		{
-			j = 0;
-		}
-		double a = area_triangle(glob.coordx[i], glob.coordy[i], glob.coordx[j], glob.coordy[j]);
-		sum_x += (pow(glob.coordy[i], 2) + (glob.coordy[i] * glob.coordy[j]) + pow(glob.coordy[j], 2)) * a;
-		sum_y += (pow(glob.coordx[i], 2) + (glob.coordx[i] * glob.coordx[j]) + pow(glob.coordx[j], 2)) * a;
-	}
-	glob.moment_inertia_x = sum_x / 12;
-	glob.moment_inertia_y = sum_y / 12;
-	// fprintf(stderr, "%f \n", glob.moment_inertia_x);
-}
+// void moment_of_inertia()
+// {
+// 	double sum_x = 0;
+// 	double sum_y = 0;
+// 	for (size_t i = 0; i < glob.count; i++)
+// 	{
+// 		int j = i + 1;
+// 		if (j == glob.count)
+// 		{
+// 			j = 0;
+// 		}
+// 		double a = area_triangle(glob.coordx[i], glob.coordy[i], glob.coordx[j], glob.coordy[j]);
+// 		sum_x += (pow(glob.coordy[i], 2) + (glob.coordy[i] * glob.coordy[j]) + pow(glob.coordy[j], 2)) * a;
+// 		sum_y += (pow(glob.coordx[i], 2) + (glob.coordx[i] * glob.coordx[j]) + pow(glob.coordx[j], 2)) * a;
+// 	}
+// 	glob.moment_inertia_x = sum_x / 12;
+// 	glob.moment_inertia_y = sum_y / 12;
+// 	// fprintf(stderr, "%f \n", glob.moment_inertia_x);
+// }
 
 // void moment_of_inertia()
 // {
@@ -571,11 +569,20 @@ void moment_of_inertia()
 //     double center[] = {0.0, 0.0};
 //     double mmoi = 0;
 
+// 	double sin_a = sin(glob.angle);
+// 	double cos_a = cos(glob.angle);
+
 //     int prev = glob.count-1;
 //     for (int index = 0; index < glob.count; index++)
 //     {
-//         double a[] = {glob.coordx[prev], glob.coordy[prev]};
-//         double b[] ={glob.coordx[index], glob.coordy[index]};
+// 		double current_x = glob.x + cos_a * glob.coordx[index] - sin_a * glob.coordy[index];
+// 		double current_y = glob.y + sin_a * glob.coordx[index] + cos_a * glob.coordy[index];
+
+// 		double prev_x = glob.x + cos_a * glob.coordx[prev] - sin_a * glob.coordy[prev];
+// 		double prev_y = glob.y + sin_a * glob.coordx[prev] + cos_a * glob.coordy[prev];
+
+//         double a[] ={prev_x, prev_y};
+//         double b[] ={current_x, current_y};
 
 //         double area_step = crossProduct(a, b)/2;
 //         double center_step[] = {(a[0]+b[0])/3, (a[1]+b[1])/3};
@@ -593,39 +600,125 @@ void moment_of_inertia()
 //     mmoi *= density;
 //     mmoi -= glob.mass * dot_product(center, center);
 
-// 	glob.moment_inertia_x  = glob.moment_inertia_y = mmoi;
+// 	glob.moment_inertia = fabs(mmoi);
 
 // }
+
+void moment_of_inertia()
+{
+	double momentOfInertia = 0;
+	double density = 1;
+	double sin_a = sin(glob.angle);
+	double cos_a = cos(glob.angle);
+	for (int i = 1; i < glob.count - 1; i++)
+	{
+		double current_x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
+		double current_y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
+
+		double next_x = glob.x + cos_a * glob.coordx[i+1] - sin_a * glob.coordy[i+1];
+		double next_y = glob.y + sin_a * glob.coordx[i+1] + cos_a * glob.coordy[i+1];
+
+		double anchor_x = glob.x + cos_a * glob.coordx[0] - sin_a * glob.coordy[0];
+		double anchor_y = glob.y + sin_a * glob.coordx[0] + cos_a * glob.coordy[0];
+
+		double p1[2] = {anchor_x, anchor_y};
+		double p2[2] = {current_x, current_y};
+		double p3[2] = {next_x, next_y};
+
+		double w = sqrt((pow(p1[0] - p2[0], 2) + pow(p1[1] - p2[1], 2)));
+		double sub_one[2] = {p1[0] - p2[0], p1[1] - p2[1]};
+		double sub_two[2] = {p3[0] - p2[0], p3[1] - p2[1]};
+		double w1 = fabs(dot_product(sub_one, sub_two) / w);
+		double w2 = fabs(w - w1);
+
+		sub_one[0] = p3[0] - p1[0];
+		sub_one[1] = p3[1] - p1[1];
+
+		sub_two[0] = p2[0] - p1[0];
+		sub_two[1] = p2[1] - p1[1];
+
+		double signedTriArea = crossProduct(sub_one, sub_two) / 2;
+		double h = 2 * fabs(signedTriArea) / w;
+
+		sub_one[0] = p1[0] - p2[0];
+		sub_one[1] = p1[1] - p2[1];
+
+		double p4[2] = {p2[0] + sub_one[0] * (w1 / w), p2[1] + sub_one[1] * (w1 / w)};
+
+		double cm1[2] = {(p2[0] + p3[0] + p4[0]) / 3, (p2[1] + p3[1] + p4[1]) / 3};
+		double cm2[2] = {(p1[0] + p3[0] + p4[0]) / 3, (p1[1] + p3[1] + p4[1]) / 3};
+
+		double I1 = density * w1 * h * ((h * h / 4) + (w1 * w1 / 12));
+		double I2 = density * w2 * h * ((h * h / 4) + (w2 * w2 / 12));
+		double m1 = 0.5 * w1 * h * density;
+		double m2 = 0.5 * w2 * h * density;
+
+		double dist = sqrt(pow(cm1[0] - p3[0], 2) + pow(cm1[1] - p3[1], 2));
+		double I1cm = I1 - (m1 * pow(dist, 2));
+		dist = sqrt(pow(cm2[0] - p3[0], 2) + pow(cm2[1] - p3[1], 2));
+		double I2cm = I2 - (m2 * pow(dist, 2));
+		dist = sqrt(pow(cm1[0] - 0, 2) + pow(cm1[1] - 0, 2));
+		double momentOfInertiaPart1 = I1cm + (m1 * pow(dist, 2));
+		dist = sqrt(pow(cm2[0] - 0, 2) + pow(cm2[1] - 0, 2));
+		double momentOfInertiaPart2 = I2cm + (m2 * pow(dist, 2));
+
+		sub_one[0] = p1[0] - p3[0];
+		sub_one[1] = p1[1] - p3[1];
+		sub_two[0] = p4[0] - p3[0];
+		sub_two[1] = p4[1] - p3[1];
+		if (crossProduct(sub_one, sub_two) > 0)
+		{
+			momentOfInertia += momentOfInertiaPart1;
+		}
+		else
+		{
+			momentOfInertia -= momentOfInertiaPart1;
+		}
+		sub_one[0] = p4[0] - p3[0];
+		sub_one[1] = p4[1] - p3[1];
+		sub_two[0] = p2[0] - p3[0];
+		sub_two[1] = p2[1] - p3[1];
+		if (crossProduct(sub_one, sub_two) > 0)
+		{
+			momentOfInertia += momentOfInertiaPart2;
+		}
+		else
+		{
+			momentOfInertia -= momentOfInertiaPart2;
+		}
+	}
+	glob.moment_inertia = fabs(momentOfInertia);
+}
 
 // Calculate the right respond witht the collision between balls and polygon
 void collision_ball_polygon_response(double x, double y, double nb[], struct ball *p)
 {
-	double vel_vector_polygon[] = {glob.v_x, glob.v_y};
-	double dis_vector_polygon[] = {x - glob.x, y - glob.y};
+	// double vel_vector_polygon[] = {glob.v_x, glob.v_y};
+	// double dis_vector_polygon[] = {x - glob.x, y - glob.y};
 
-	double vel_vector_ball[] = {p->v_x, p->v_y};
+	// double vel_vector_ball[] = {p->v_x, p->v_y};
 
-	double magnitude = sqrt(nb[0] * nb[0] + nb[1] * nb[1]);
-	nb[0] /= magnitude;
-	nb[1] /= magnitude;
+	// double magnitude = sqrt(nb[0] * nb[0] + nb[1] * nb[1]);
+	// nb[0] /= magnitude;
+	// nb[1] /= magnitude;
 
-	double first_term_x = -2 * (dot_product(vel_vector_polygon, nb) - dot_product(vel_vector_ball, nb) + glob.v_angle_x * (crossProduct(dis_vector_polygon, nb) - p->v_angle * (crossProduct(dis_vector_polygon, nb))));
-	double second_term_x = 1 / glob.mass + (pow(crossProduct(dis_vector_polygon, nb), 2) / glob.moment_inertia_x);
+	// double first_term_x = -2 * (dot_product(vel_vector_polygon, nb) - dot_product(vel_vector_ball, nb) + glob.v_angle_x * (crossProduct(dis_vector_polygon, nb) - p->v_angle * (crossProduct(dis_vector_polygon, nb))));
+	// double second_term_x = 1 / glob.mass + (pow(crossProduct(dis_vector_polygon, nb), 2) / glob.moment_inertia_x);
 
-	double first_term_y = -2 * (dot_product(vel_vector_polygon, nb) - dot_product(vel_vector_ball, nb) + glob.v_angle_y * (crossProduct(dis_vector_polygon, nb) - p->v_angle * (crossProduct(dis_vector_polygon, nb))));
-	double second_term_y = 1 / glob.mass + (pow(crossProduct(dis_vector_polygon, nb), 2) / glob.moment_inertia_y);
+	// double first_term_y = -2 * (dot_product(vel_vector_polygon, nb) - dot_product(vel_vector_ball, nb) + glob.v_angle_y * (crossProduct(dis_vector_polygon, nb) - p->v_angle * (crossProduct(dis_vector_polygon, nb))));
+	// double second_term_y = 1 / glob.mass + (pow(crossProduct(dis_vector_polygon, nb), 2) / glob.moment_inertia_y);
 
-	double j_x = first_term_x / second_term_x;
-	double j_y = first_term_y / second_term_y;
+	// double j_x = first_term_x / second_term_x;
+	// double j_y = first_term_y / second_term_y;
 
-	double j_vector[] = {j_x, j_y};
+	// double j_vector[] = {j_x, j_y};
 
-	glob.v_x += (1 / glob.mass) * j_x;
-	glob.v_y += (1 / glob.mass) * j_y;
-	// fprintf(stderr, "%f \n", glob.v_x);
+	// glob.v_x += (1 / glob.mass) * j_x;
+	// glob.v_y += (1 / glob.mass) * j_y;
+	// // fprintf(stderr, "%f \n", glob.v_x);
 
-	glob.v_angle_x += crossProduct(dis_vector_polygon, j_vector) / glob.moment_inertia_x;
-	glob.v_angle_y += crossProduct(dis_vector_polygon, j_vector) / glob.moment_inertia_y;
+	// glob.v_angle_x += crossProduct(dis_vector_polygon, j_vector) / glob.moment_inertia_x;
+	// glob.v_angle_y += crossProduct(dis_vector_polygon, j_vector) / glob.moment_inertia_y;
 }
 
 // Method for checking and updating if a sphere intersects the polygon
@@ -1063,7 +1156,7 @@ static void create_and_add_sphere()
 	// This radius is twice the one from the structure
 	// since the cairo drawing patter for the face is different
 	unsigned int v_angle_360 = (v_angle_min + rand() % (v_angle_max + 1 - v_angle_min)) % 360;
-	glob.v_angle_x = 2 * M_PI * v_angle_360 / 360;
+	glob.v_angle = 2 * M_PI * v_angle_360 / 360;
 	glob.angle = (rand() % 360) * 2 * M_PI / 360;
 
 	glob.coordx[0] += delta * glob.v_x + delta * delta * g_x / 2.0;
@@ -1079,76 +1172,56 @@ static void create_and_add_sphere()
 	balls[n_balls - 1].v_x = glob.v_x;
 	balls[n_balls - 1].v_y = glob.v_y;
 	balls[n_balls - 1].angle = glob.angle;
-	balls[n_balls - 1].v_angle = glob.v_angle_x;
+	balls[n_balls - 1].v_angle = glob.v_angle;
 	balls[n_balls - 1].radius = glob.radius;
 }
 
 // Find the mass of the polygon
 static void polygon_mass()
 {
-	double sum_x = 0;
-	double sum_y = 0;
-	for (size_t i = 0; i < glob.count; i++)
-	{
-		int j = i + 1;
-		if (j == glob.count)
-		{
-			j = 0;
-		}
-		sum_x += glob.coordx[i] * glob.coordy[j];
-		sum_y += glob.coordy[i] * glob.coordx[j];
-	}
 	// Since density = mass/area
-	// mass = desnity * area and dfensity = 1
-	glob.mass = abs((int)((sum_x - sum_y) / 2));
-	// fprintf(stderr, "%d \n", glob.mass);
+	// mass = density * area and density = 1
+	double area = 0;
+	double sin_a = sin(glob.angle);
+	double cos_a = cos(glob.angle);
+	for (int i = 1; i < glob.count - 1; i++)
+	{
+		double current_x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
+		double current_y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
+
+		double next_x = glob.x + cos_a * glob.coordx[i+1] - sin_a * glob.coordy[i+1];
+		double next_y = glob.y + sin_a * glob.coordx[i+1] + cos_a * glob.coordy[i+1];
+
+		double anchor_x = glob.x + cos_a * glob.coordx[0] - sin_a * glob.coordy[0];
+		double anchor_y = glob.y + sin_a * glob.coordx[0] + cos_a * glob.coordy[0];
+
+		double v1[2] = {next_x - current_x, next_y - current_y};
+		double v2[2] = {current_x - anchor_x, current_x - anchor_y};
+		area += crossProduct(v1, v2) / 2;
+	}
+	area = fabs(area);
+	glob.mass = area;
 }
 
 // Calculate the right respond witht the collision between wall and polygon
-void collision_wall_response(double x, double y, double nb[])
+void collision_wall_response(double x, double y, double n_x, double n_y)
 {
-	double vel_vector[] = {glob.v_x, glob.v_y};
-	double dis_vector[] = {x - glob.x, y - glob.y};
+	double nb[2] = {n_x, n_y};
+	double vel_vector[2] = {glob.v_x, glob.v_y};
+	double dis_vector[2] = {x - glob.x, y - glob.y};
 
-	double magnitude = sqrt(nb[0] * nb[0] + nb[1] * nb[1]);
-	nb[0] /= magnitude;
-	nb[1] /= magnitude;
+	double first_term = -2 * (dot_product(vel_vector, nb) + (glob.v_angle * (crossProduct(dis_vector, nb))));
+	double second_term = (1 / glob.mass) + (pow(crossProduct(dis_vector, nb), 2) / glob.moment_inertia);
 
-	magnitude = sqrt(dis_vector[0] * dis_vector[0] + dis_vector[1] * dis_vector[1]);
-	dis_vector[0] /= magnitude;
-	dis_vector[1] /= magnitude;
+	double j = first_term / second_term;
+	// fprintf(stderr, "%f \n", j);
 
-	double first_term_x = -2 * (dot_product(vel_vector, nb) + glob.v_angle_x * (crossProduct(dis_vector, nb)));
-	double second_term_x = 1 / glob.mass + (pow(crossProduct(dis_vector, nb), 2) / glob.moment_inertia_x);
+	glob.v_x += (1 / glob.mass) * j * nb[0];
+	glob.v_y += (1 / glob.mass) * j * nb[1];
 
-	double first_term_y = -2 * (dot_product(vel_vector, nb) + glob.v_angle_y * (crossProduct(dis_vector, nb)));
-	double second_term_y = 1 / glob.mass + (pow(crossProduct(dis_vector, nb), 2) / glob.moment_inertia_y);
+	glob.v_angle += (j / glob.moment_inertia) * crossProduct(dis_vector, nb);
+	
 
-	double j_x = first_term_x / second_term_x;
-	double j_y = j_x;
-
-	double j_vector[] = {j_x, j_y};
-
-	glob.v_x += (1 / glob.mass) * j_x;
-	glob.v_y += (1 / glob.mass) * j_y;
-	// fprintf(stderr, "%f \n", vel_vector);
-
-	glob.v_angle_x += crossProduct(dis_vector, j_vector) / glob.moment_inertia_x;
-	glob.v_angle_y += crossProduct(dis_vector, j_vector) / glob.moment_inertia_y;
-	// if(glob.v_angle_x > 2 * M_PI){
-	// 	glob.v_angle_x = 2*M_PI;
-	// }
-	// if(glob.v_angle_x < -2 * M_PI){
-	// 	glob.v_angle_x = -2 * M_PI;
-	// }
-	// if(glob.v_angle_y > 2 * M_PI){
-	// 	glob.v_angle_y = 2*M_PI;
-	// }
-	// if(glob.v_angle_y > -2 * M_PI){
-	// 	glob.v_angle_y = -2*M_PI;
-	// }
-
-	// fprintf(stderr, "%f \n", glob.v_angle_x);
 }
 
 // Update the polygon state with the gravity and the rotation
@@ -1157,63 +1230,52 @@ static void update_polygon()
 	// Magari questa condizione è reduntant
 	if (glob_complete)
 	{
-
 		/* collision check */
 		double sin_a = sin(glob.angle);
 		double cos_a = cos(glob.angle);
 
-		glob.x += delta * glob.v_x + delta * delta * g_x / 2.0;
-		glob.y += delta * glob.v_y + delta * delta * g_y / 2.0;
-
 		for (int i = 0; i < glob.count; ++i)
 		{
-			double x = glob.x + (cos_a * glob.coordx[i] - sin_a * glob.coordy[i]);
-			double y = glob.y + (sin_a * glob.coordx[i] + cos_a * glob.coordy[i]);
+			double r_x = (cos_a * glob.coordx[i] - sin_a * glob.coordy[i]);
+			double r_y = (sin_a * glob.coordx[i] + cos_a * glob.coordy[i]);
+			double x = glob.x + r_x;
+			double y = glob.y + r_y;
+			// double v_x = glob.v_x + (-sin_a * glob.coordx[i] - cos_a * glob.coordy[i]);
+			// double v_y = glob.v_y + (cos_a * glob.coordx[i] - sin_a * glob.coordy[i]);
+			double v_x = glob.v_x + (-sin_a * glob.coordx[i] - cos_a * glob.coordy[i]);
+			double v_y = glob.v_y + (cos_a * glob.coordx[i] - sin_a * glob.coordy[i]);
 
-			double nb[2];
-			double bias = 2;
-			if ((x < bias && glob.v_x < 0) || (x > width - bias && glob.v_x > 0))
+			/* check for collision with left wall */
+			if (x <= 0 && v_x < 0)
 			{
-
-				if (x < bias)
-				{
-					nb[0] = bias;
-					nb[1] = -height;
-				}
-				else
-				{
-					nb[0] = bias;
-					nb[1] = height;
-				}
-
-				collision_wall_response(x, y, nb);
-
-				glob.v_x = -glob.v_x;
+				collision_wall_response(x, y, 1, 0);
+				// glob.v_x = -glob.v_x;
 				break;
 			}
-			if ((y < bias && glob.v_y < 0) || (y > height - bias && glob.v_y > 0))
+			else if (x >= width && v_x > 0)
 			{
-				if (y < bias)
-				{
-					nb[0] = -width;
-					nb[1] = bias;
-				}
-				else
-				{
-					nb[0] = width;
-					nb[1] = bias;
-				}
-
-				collision_wall_response(x, y, nb);
-
-				glob.v_y = -glob.v_y;
+				collision_wall_response(x, y, -1, 0);
+				// glob.v_x = -glob.v_x;
+				break;
+			}
+			else if (y <= 0 && v_y < 0)
+			{
+				collision_wall_response(x, y, 0, 1);
+				// glob.v_y = -glob.v_y;
+				break;
+			}
+			else if (y >= height && v_y > 0)
+			{
+				collision_wall_response(x, y, 0, -1);
+				// glob.v_y = -glob.v_y;
 				break;
 			}
 		}
-
+		glob.x += delta * glob.v_x + delta * delta * g_x / 2.0;
+		glob.y += delta * glob.v_y + delta * delta * g_y / 2.0;
 		glob.v_x += delta * g_x;
 		glob.v_y += delta * g_y;
-		glob.angle += delta * glob.v_angle_x;
+		glob.angle += delta * glob.v_angle;
 		// Make boundaries on the angular velocity
 
 		if (glob.angle > 2 * M_PI)
@@ -1486,8 +1548,7 @@ static gboolean clicked(GtkWidget *widget, GdkEventButton *event,
 		// Add random velocity
 		glob.v_x = v_min + rand() % (v_max + 1 - v_min);
 		glob.v_y = v_min + rand() % (v_max + 1 - v_min);
-		glob.v_angle_x = (v_min + rand() % (v_max + 1 - v_min)) / 10;
-		glob.v_angle_y = glob.v_angle_x;
+		glob.v_angle = (v_min + rand() % (v_max + 1 - v_min)) / 10;
 
 		if (glob.count == 1)
 		{
