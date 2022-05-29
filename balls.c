@@ -563,132 +563,132 @@ double area_triangle(double x_a, double y_a, double x_b, double y_b)
 // 	// fprintf(stderr, "%f \n", glob.moment_inertia_x);
 // }
 
-// void moment_of_inertia()
-// {
-// 	double area = 0;
-//     double center[] = {0.0, 0.0};
-//     double mmoi = 0;
-
-// 	double sin_a = sin(glob.angle);
-// 	double cos_a = cos(glob.angle);
-
-//     int prev = glob.count-1;
-//     for (int index = 0; index < glob.count; index++)
-//     {
-// 		double current_x = glob.x + cos_a * glob.coordx[index] - sin_a * glob.coordy[index];
-// 		double current_y = glob.y + sin_a * glob.coordx[index] + cos_a * glob.coordy[index];
-
-// 		double prev_x = glob.x + cos_a * glob.coordx[prev] - sin_a * glob.coordy[prev];
-// 		double prev_y = glob.y + sin_a * glob.coordx[prev] + cos_a * glob.coordy[prev];
-
-//         double a[] ={prev_x, prev_y};
-//         double b[] ={current_x, current_y};
-
-//         double area_step = crossProduct(a, b)/2;
-//         double center_step[] = {(a[0]+b[0])/3, (a[1]+b[1])/3};
-//         double mmoi_step = area_step*(dot_product(a, a)+dot_product(b, b)+dot_product(a, b))/6;
-
-//         center[0] = (center[0]*area + center_step[0] * area_step)/(area + area_step);
-// 		center[1] = (center[1]*area + center_step[1] * area_step)/(area + area_step);
-//         area += area_step;
-//         mmoi += mmoi_step;
-
-//         prev = index;
-//     }
-
-//     double density = glob.mass/area;
-//     mmoi *= density;
-//     mmoi -= glob.mass * dot_product(center, center);
-
-// 	glob.moment_inertia = fabs(mmoi);
-
-// }
-
 void moment_of_inertia()
 {
-	double momentOfInertia = 0;
-	double density = 1;
+	double area = 0;
+    double center[] = {0.0, 0.0};
+    double mmoi = 0;
+
 	double sin_a = sin(glob.angle);
 	double cos_a = cos(glob.angle);
-	for (int i = 1; i < glob.count - 1; i++)
-	{
-		double current_x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
-		double current_y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
 
-		double next_x = glob.x + cos_a * glob.coordx[i+1] - sin_a * glob.coordy[i+1];
-		double next_y = glob.y + sin_a * glob.coordx[i+1] + cos_a * glob.coordy[i+1];
+    int prev = glob.count-1;
+    for (int index = 0; index < glob.count; index++)
+    {
+		double current_x = glob.x + cos_a * glob.coordx[index] - sin_a * glob.coordy[index];
+		double current_y = glob.y + sin_a * glob.coordx[index] + cos_a * glob.coordy[index];
 
-		double anchor_x = glob.x + cos_a * glob.coordx[0] - sin_a * glob.coordy[0];
-		double anchor_y = glob.y + sin_a * glob.coordx[0] + cos_a * glob.coordy[0];
+		double prev_x = glob.x + cos_a * glob.coordx[prev] - sin_a * glob.coordy[prev];
+		double prev_y = glob.y + sin_a * glob.coordx[prev] + cos_a * glob.coordy[prev];
 
-		double p1[2] = {anchor_x, anchor_y};
-		double p2[2] = {current_x, current_y};
-		double p3[2] = {next_x, next_y};
+        double a[] ={prev_x, prev_y};
+        double b[] ={current_x, current_y};
 
-		double w = sqrt((pow(p1[0] - p2[0], 2) + pow(p1[1] - p2[1], 2)));
-		double sub_one[2] = {p1[0] - p2[0], p1[1] - p2[1]};
-		double sub_two[2] = {p3[0] - p2[0], p3[1] - p2[1]};
-		double w1 = fabs(dot_product(sub_one, sub_two) / w);
-		double w2 = fabs(w - w1);
+        double area_step = crossProduct(a, b)/2;
+        double center_step[] = {(a[0]+b[0])/3, (a[1]+b[1])/3};
+        double mmoi_step = area_step*(dot_product(a, a)+dot_product(b, b)+dot_product(a, b))/6;
 
-		sub_one[0] = p3[0] - p1[0];
-		sub_one[1] = p3[1] - p1[1];
+        center[0] = (center[0]*area + center_step[0] * area_step)/(area + area_step);
+		center[1] = (center[1]*area + center_step[1] * area_step)/(area + area_step);
+        area += area_step;
+        mmoi += mmoi_step;
 
-		sub_two[0] = p2[0] - p1[0];
-		sub_two[1] = p2[1] - p1[1];
+        prev = index;
+    }
 
-		double signedTriArea = crossProduct(sub_one, sub_two) / 2;
-		double h = 2 * fabs(signedTriArea) / w;
+    double density = glob.mass/area;
+    mmoi *= density;
+    mmoi -= glob.mass * dot_product(center, center);
 
-		sub_one[0] = p1[0] - p2[0];
-		sub_one[1] = p1[1] - p2[1];
+	glob.moment_inertia = fabs(mmoi);
 
-		double p4[2] = {p2[0] + sub_one[0] * (w1 / w), p2[1] + sub_one[1] * (w1 / w)};
-
-		double cm1[2] = {(p2[0] + p3[0] + p4[0]) / 3, (p2[1] + p3[1] + p4[1]) / 3};
-		double cm2[2] = {(p1[0] + p3[0] + p4[0]) / 3, (p1[1] + p3[1] + p4[1]) / 3};
-
-		double I1 = density * w1 * h * ((h * h / 4) + (w1 * w1 / 12));
-		double I2 = density * w2 * h * ((h * h / 4) + (w2 * w2 / 12));
-		double m1 = 0.5 * w1 * h * density;
-		double m2 = 0.5 * w2 * h * density;
-
-		double dist = sqrt(pow(cm1[0] - p3[0], 2) + pow(cm1[1] - p3[1], 2));
-		double I1cm = I1 - (m1 * pow(dist, 2));
-		dist = sqrt(pow(cm2[0] - p3[0], 2) + pow(cm2[1] - p3[1], 2));
-		double I2cm = I2 - (m2 * pow(dist, 2));
-		dist = sqrt(pow(cm1[0] - 0, 2) + pow(cm1[1] - 0, 2));
-		double momentOfInertiaPart1 = I1cm + (m1 * pow(dist, 2));
-		dist = sqrt(pow(cm2[0] - 0, 2) + pow(cm2[1] - 0, 2));
-		double momentOfInertiaPart2 = I2cm + (m2 * pow(dist, 2));
-
-		sub_one[0] = p1[0] - p3[0];
-		sub_one[1] = p1[1] - p3[1];
-		sub_two[0] = p4[0] - p3[0];
-		sub_two[1] = p4[1] - p3[1];
-		if (crossProduct(sub_one, sub_two) > 0)
-		{
-			momentOfInertia += momentOfInertiaPart1;
-		}
-		else
-		{
-			momentOfInertia -= momentOfInertiaPart1;
-		}
-		sub_one[0] = p4[0] - p3[0];
-		sub_one[1] = p4[1] - p3[1];
-		sub_two[0] = p2[0] - p3[0];
-		sub_two[1] = p2[1] - p3[1];
-		if (crossProduct(sub_one, sub_two) > 0)
-		{
-			momentOfInertia += momentOfInertiaPart2;
-		}
-		else
-		{
-			momentOfInertia -= momentOfInertiaPart2;
-		}
-	}
-	glob.moment_inertia = fabs(momentOfInertia);
 }
+
+// void moment_of_inertia()
+// {
+// 	double momentOfInertia = 0;
+// 	double density = 1;
+// 	double sin_a = sin(glob.angle);
+// 	double cos_a = cos(glob.angle);
+// 	for (int i = 1; i < glob.count - 1; i++)
+// 	{
+// 		double current_x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
+// 		double current_y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
+
+// 		double next_x = glob.x + cos_a * glob.coordx[i + 1] - sin_a * glob.coordy[i + 1];
+// 		double next_y = glob.y + sin_a * glob.coordx[i + 1] + cos_a * glob.coordy[i + 1];
+
+// 		double anchor_x = glob.x + cos_a * glob.coordx[0] - sin_a * glob.coordy[0];
+// 		double anchor_y = glob.y + sin_a * glob.coordx[0] + cos_a * glob.coordy[0];
+
+// 		double p1[2] = {anchor_x, anchor_y};
+// 		double p2[2] = {current_x, current_y};
+// 		double p3[2] = {next_x, next_y};
+
+// 		double w = sqrt((pow(p1[0] - p2[0], 2) + pow(p1[1] - p2[1], 2)));
+// 		double sub_one[2] = {p1[0] - p2[0], p1[1] - p2[1]};
+// 		double sub_two[2] = {p3[0] - p2[0], p3[1] - p2[1]};
+// 		double w1 = fabs(dot_product(sub_one, sub_two) / w);
+// 		double w2 = fabs(w - w1);
+
+// 		sub_one[0] = p3[0] - p1[0];
+// 		sub_one[1] = p3[1] - p1[1];
+
+// 		sub_two[0] = p2[0] - p1[0];
+// 		sub_two[1] = p2[1] - p1[1];
+
+// 		double signedTriArea = crossProduct(sub_one, sub_two) / 2;
+// 		double h = 2 * fabs(signedTriArea) / w;
+
+// 		sub_one[0] = p1[0] - p2[0];
+// 		sub_one[1] = p1[1] - p2[1];
+
+// 		double p4[2] = {p2[0] + sub_one[0] * (w1 / w), p2[1] + sub_one[1] * (w1 / w)};
+
+// 		double cm1[2] = {(p2[0] + p3[0] + p4[0]) / 3, (p2[1] + p3[1] + p4[1]) / 3};
+// 		double cm2[2] = {(p1[0] + p3[0] + p4[0]) / 3, (p1[1] + p3[1] + p4[1]) / 3};
+
+// 		double I1 = density * w1 * h * ((h * h / 4) + (w1 * w1 / 12));
+// 		double I2 = density * w2 * h * ((h * h / 4) + (w2 * w2 / 12));
+// 		double m1 = 0.5 * w1 * h * density;
+// 		double m2 = 0.5 * w2 * h * density;
+
+// 		double dist = sqrt(pow(cm1[0] - p3[0], 2) + pow(cm1[1] - p3[1], 2));
+// 		double I1cm = I1 - (m1 * pow(dist, 2));
+// 		dist = sqrt(pow(cm2[0] - p3[0], 2) + pow(cm2[1] - p3[1], 2));
+// 		double I2cm = I2 - (m2 * pow(dist, 2));
+// 		dist = sqrt(pow(cm1[0] - 0, 2) + pow(cm1[1] - 0, 2));
+// 		double momentOfInertiaPart1 = I1cm + (m1 * pow(dist, 2));
+// 		dist = sqrt(pow(cm2[0] - 0, 2) + pow(cm2[1] - 0, 2));
+// 		double momentOfInertiaPart2 = I2cm + (m2 * pow(dist, 2));
+
+// 		sub_one[0] = p1[0] - p3[0];
+// 		sub_one[1] = p1[1] - p3[1];
+// 		sub_two[0] = p4[0] - p3[0];
+// 		sub_two[1] = p4[1] - p3[1];
+// 		if (crossProduct(sub_one, sub_two) > 0)
+// 		{
+// 			momentOfInertia += momentOfInertiaPart1;
+// 		}
+// 		else
+// 		{
+// 			momentOfInertia -= momentOfInertiaPart1;
+// 		}
+// 		sub_one[0] = p4[0] - p3[0];
+// 		sub_one[1] = p4[1] - p3[1];
+// 		sub_two[0] = p2[0] - p3[0];
+// 		sub_two[1] = p2[1] - p3[1];
+// 		if (crossProduct(sub_one, sub_two) > 0)
+// 		{
+// 			momentOfInertia += momentOfInertiaPart2;
+// 		}
+// 		else
+// 		{
+// 			momentOfInertia -= momentOfInertiaPart2;
+// 		}
+// 	}
+// 	glob.moment_inertia = fabs(momentOfInertia);
+// }
 
 // Calculate the right respond witht the collision between balls and polygon
 void collision_ball_polygon_response(double x, double y, double nb[], struct ball *p)
@@ -1189,8 +1189,8 @@ static void polygon_mass()
 		double current_x = glob.x + cos_a * glob.coordx[i] - sin_a * glob.coordy[i];
 		double current_y = glob.y + sin_a * glob.coordx[i] + cos_a * glob.coordy[i];
 
-		double next_x = glob.x + cos_a * glob.coordx[i+1] - sin_a * glob.coordy[i+1];
-		double next_y = glob.y + sin_a * glob.coordx[i+1] + cos_a * glob.coordy[i+1];
+		double next_x = glob.x + cos_a * glob.coordx[i + 1] - sin_a * glob.coordy[i + 1];
+		double next_y = glob.y + sin_a * glob.coordx[i + 1] + cos_a * glob.coordy[i + 1];
 
 		double anchor_x = glob.x + cos_a * glob.coordx[0] - sin_a * glob.coordy[0];
 		double anchor_y = glob.y + sin_a * glob.coordx[0] + cos_a * glob.coordy[0];
@@ -1210,18 +1210,16 @@ void collision_wall_response(double x, double y, double n_x, double n_y)
 	double vel_vector[2] = {glob.v_x, glob.v_y};
 	double dis_vector[2] = {x - glob.x, y - glob.y};
 
-	double first_term = -2 * (dot_product(vel_vector, nb) + (glob.v_angle * (crossProduct(dis_vector, nb))));
-	double second_term = (1 / glob.mass) + (pow(crossProduct(dis_vector, nb), 2) / glob.moment_inertia);
+	double first_term = -2.0 * (dot_product(vel_vector, nb) + (glob.v_angle * (crossProduct(dis_vector, nb))));
+	double second_term = (1.0 / glob.mass) + (pow(crossProduct(dis_vector, nb), 2.0) / glob.moment_inertia);
 
 	double j = first_term / second_term;
-	// fprintf(stderr, "%f \n", j);
-
-	glob.v_x += (1 / glob.mass) * j * nb[0];
-	glob.v_y += (1 / glob.mass) * j * nb[1];
-
-	glob.v_angle += (j / glob.moment_inertia) * crossProduct(dis_vector, nb);
 	
 
+	glob.v_x += (1.0 / glob.mass) * j * nb[0];
+	glob.v_y += (1.0 / glob.mass) * j * nb[1];
+
+	glob.v_angle += (1.0 / glob.moment_inertia) * j * crossProduct(dis_vector, nb);
 }
 
 // Update the polygon state with the gravity and the rotation
@@ -1240,34 +1238,28 @@ static void update_polygon()
 			double r_y = (sin_a * glob.coordx[i] + cos_a * glob.coordy[i]);
 			double x = glob.x + r_x;
 			double y = glob.y + r_y;
-			// double v_x = glob.v_x + (-sin_a * glob.coordx[i] - cos_a * glob.coordy[i]);
-			// double v_y = glob.v_y + (cos_a * glob.coordx[i] - sin_a * glob.coordy[i]);
 			double v_x = glob.v_x + (-sin_a * glob.coordx[i] - cos_a * glob.coordy[i]);
 			double v_y = glob.v_y + (cos_a * glob.coordx[i] - sin_a * glob.coordy[i]);
 
 			/* check for collision with left wall */
 			if (x <= 0 && v_x < 0)
 			{
-				collision_wall_response(x, y, 1, 0);
-				// glob.v_x = -glob.v_x;
+				collision_wall_response(x, y, 1.0, 0.0);
 				break;
 			}
 			else if (x >= width && v_x > 0)
 			{
-				collision_wall_response(x, y, -1, 0);
-				// glob.v_x = -glob.v_x;
+				collision_wall_response(x, y, -1.0, 0.0);
 				break;
 			}
 			else if (y <= 0 && v_y < 0)
 			{
-				collision_wall_response(x, y, 0, 1);
-				// glob.v_y = -glob.v_y;
+				collision_wall_response(x, y, 0.0, 1.0);
 				break;
 			}
 			else if (y >= height && v_y > 0)
 			{
-				collision_wall_response(x, y, 0, -1);
-				// glob.v_y = -glob.v_y;
+				collision_wall_response(x, y, 0.0, -1.0);
 				break;
 			}
 		}
@@ -1279,9 +1271,9 @@ static void update_polygon()
 		// Make boundaries on the angular velocity
 
 		if (glob.angle > 2 * M_PI)
-			glob.angle -= 2 * M_PI;
+			glob.angle -= 2.0 * M_PI;
 		else if (glob.angle < 0)
-			glob.angle += 2 * M_PI;
+			glob.angle += 2.0 * M_PI;
 	}
 }
 // --------------------------
