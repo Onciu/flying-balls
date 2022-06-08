@@ -533,11 +533,19 @@ void moment_of_inertia()
 	double area = 0;
 	double center[] = {0.0, 0.0};
 	double mmoi = 0;
+	double sin_a = sin(polygon.angle);
+	double cos_a = cos(polygon.angle);
 	int prev = polygon.count - 1;
 	if (polygon.count > 2)
 	{
 		for (int index = 0; index < polygon.count; index++)
 		{
+			// double current_x = polygon.x + cos_a * polygon.coordx[index] - sin_a * polygon.coordy[index];
+			// double current_y = polygon.y + sin_a * polygon.coordx[index] + cos_a * polygon.coordy[index];
+
+			// double prev_x = polygon.x + cos_a * polygon.coordx[prev] - sin_a * polygon.coordy[prev];
+			// double prev_y = polygon.y + sin_a * polygon.coordx[prev] + cos_a * polygon.coordy[prev];
+
 			double current_x = polygon.coordx[index];
 			double current_y = polygon.coordy[index];
 			double prev_x = polygon.coordx[prev];
@@ -547,6 +555,7 @@ void moment_of_inertia()
 			double b[] = {current_x, current_y};
 
 			double area_step = crossProduct(a, b) / 2.0;
+			fprintf(stderr, "%f \n", area_step);
 			double center_step[] = {(a[0] + b[0]) / 3.0, (a[1] + b[1]) / 3.0};
 			double mmoi_step = area_step * (dot_product(a, a) + dot_product(b, b) + dot_product(a, b)) / 6.0;
 
@@ -559,8 +568,11 @@ void moment_of_inertia()
 		}
 
 		double density = polygon.mass / area;
+		// fprintf(stderr, "%f \n", polygon.mass);
+		// fprintf(stderr, "%f \n", area);
 		mmoi *= density; 
 		mmoi -= polygon.mass * dot_product(center, center);
+
 		polygon.moment_inertia = fabs(mmoi);
 	}
 	else
@@ -654,6 +666,7 @@ void collision_ball_polygon_response(double x, double y, double nb[], struct bal
 	double vel_vector_ball[] = {p->v_x, p->v_y};
 
 	double mass_sphere = (M_PI * p->radius * p->radius);
+	// double mass_sphere = 1.0;
 
 	double first_term_x = -2.0 * (dot_product(vel_vector_polygon, nb) - dot_product(vel_vector_ball, nb) + polygon.v_angle * (crossProduct(dis_vector_polygon, nb) - p->v_angle * (crossProduct(dis_vector_polygon, nb))));
 	double second_term_x = (1.0 / polygon.mass) + (1.0 / mass_sphere) + (pow(crossProduct(dis_vector_polygon, nb), 2.0) / polygon.moment_inertia + 0.0);
@@ -666,6 +679,8 @@ void collision_ball_polygon_response(double x, double y, double nb[], struct bal
 
 	p->v_x -= (1.0 / mass_sphere) * j * nb[0];
 	p->v_y -= (1.0 / mass_sphere) * j * nb[1];
+	// p->v_x = -p->v_x;
+	// p->v_y = -p->v_y;
 
 	polygon.v_angle += (1.0 / polygon.moment_inertia) * j * crossProduct(dis_vector_polygon, nb);
 	// p->v_angle -= (1.0 / p->moment_of_inertia) * j * crossProduct(dis_vector_ball, nb);
@@ -694,11 +709,9 @@ void check_polygon_intersection()
 			double current_x = polygon.x + cos_a * polygon.coordx[j] - sin_a * polygon.coordy[j];
 			double current_y = polygon.y + sin_a * polygon.coordx[j] + cos_a * polygon.coordy[j];
 
-
-
-			// Distance from source point to line start
-			double source_to_origin_x = p->x - current_x;
-			double source_to_origin_y = p->y - current_y;
+			// calc delta distance: source point to line start
+			double dx = p->x - current_x;
+			double dy = p->y - current_y;
 			
 			int next = j + 1;
 
@@ -706,37 +719,36 @@ void check_polygon_intersection()
 			{
 				next = 0;
 			}
-
 			double next_x = polygon.x + cos_a * polygon.coordx[next] - sin_a * polygon.coordy[next];
 			double next_y = polygon.y + sin_a * polygon.coordx[next] + cos_a * polygon.coordy[next];
-
-			// Distance from line start to end
-			double start_to_end_x = next_x - current_x;
-			double start_to_end_y = next_y - current_y;
+			// calc delta distance: line start to end
+			double dxx = next_x - current_x;
+			double dyy = next_y - current_y;
 
 			// Calc position on line normalized between 0.00 & 1.00
-			double pos = (source_to_origin_x * start_to_end_x + source_to_origin_y * start_to_end_y) / (start_to_end_x * start_to_end_x + start_to_end_y * start_to_end_y);
+			// == dot product divided by delta line distances squared
+			double t = (dx * dxx + dy * dyy) / (dxx * dxx + dyy * dyy);
 
 			// clamp results to being on the segment
-			if (pos < 0)
+			if (t < 0)
 			{
-				pos = 0;
+				t = 0;
 			}
-			else if (pos > 1)
+			if (t > 1)
 			{
-				pos = 1;
+				t = 1;
 			}
-			// calculate nearest point on line
-			double x = current_x + start_to_end_x * pos;
-			double y = current_y + start_to_end_y * pos;
+			// calc nearest pt on line
+			double x = current_x + dxx * t;
+			double y = current_y + dyy * t;
 
 			double a = p->x - x;
 			double b = p->y - y;
-
+			// fprintf(stderr, "%f \n", a);
 			if ((a * a + b * b) <= p->radius * p->radius)
 			{
-				// p->x += a;
-				// p->y += b;
+				p->x += a;
+				p->y += b;
 				double nb[2];
 				nb[0] = a;
 				nb[1] = b;
@@ -744,6 +756,7 @@ void check_polygon_intersection()
 				nb[0] /= magnitude;
 				nb[1] /= magnitude;
 				collision_ball_polygon_response(x, y, nb, p);
+				// https://fotino.me/2d-rigid-body-collision-response/
 			}
 		}
 	}
