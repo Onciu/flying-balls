@@ -513,7 +513,6 @@ double dot_product(double v[], double u[])
 double crossProduct(double vect_A[], double vect_B[])
 
 {
-	// fprintf(stderr, "%f \n",  result[0]);
 	return (vect_A[0] * vect_B[1] - vect_A[1] * vect_B[0]);
 }
 
@@ -523,7 +522,7 @@ double area_triangle(double x_a, double y_a, double x_b, double y_b)
 	double a = x_a * (y_b - polygon.y);
 	double b = x_b * (polygon.y - y_a);
 	double c = polygon.x * (y_a - y_b);
-	return fabs(a + b + c) / 2;
+	return fabs(a + b + c) / 2.0;
 }
 
 // Calculate the moment of inertia of the polygon
@@ -655,7 +654,7 @@ void collision_ball_polygon_response(double x, double y, double nb[], struct bal
 
 	double mass_sphere = (M_PI * p->radius * p->radius);
 
-	double first_term_x = -2.0 * (dot_product(vel_vector_polygon, nb) - dot_product(vel_vector_ball, nb) + polygon.v_angle * (crossProduct(dis_vector_polygon, nb) - p->v_angle * (crossProduct(dis_vector_polygon, nb))));
+	double first_term_x = -2.0 * (dot_product(vel_vector_polygon, nb) - dot_product(vel_vector_ball, nb) + polygon.v_angle * (crossProduct(dis_vector_polygon, nb) - 0));
 	double second_term_x = (1.0 / polygon.mass) + (1.0 / mass_sphere) + (pow(crossProduct(dis_vector_polygon, nb), 2.0) / polygon.moment_inertia + 0.0);
 
 	double j = first_term_x / second_term_x;
@@ -1239,7 +1238,7 @@ void wall_intersection()
 // Update the polygon state with the gravity and the rotation
 static void update_polygon()
 {
-	// Magari questa condizione è reduntant
+	// Magybe reduntant condition
 	if (polygon_complete)
 	{
 		/* collision check */
@@ -1330,7 +1329,7 @@ gboolean timeout(gpointer user_data)
 	{
 		update_polygon();
 	}
-	// Non ho ben capito a cosa serva questa condizione con lo stats_sampling
+	
 	if (stats_sampling > 0)
 	{
 		guint64 start = g_get_monotonic_time();
